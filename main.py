@@ -99,6 +99,7 @@ def get_args_parser():
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+    parser.add_argument('--distributed', default=None, help='url used to set up distributed sample')
     return parser
 
 
@@ -240,9 +241,91 @@ def main(args):
     print('Training time {}'.format(total_time_str))
 
 
-if __name__ == '__main__':
+def local_train():
+    global args
+    # python -m torch.distributed.launch --nproc_per_node=8 --use_env main.py --coco_path /path/to/coco  --coco_panoptic_path /path/to/coco_panoptic --dataset_file coco_panoptic --output_dir /output/path/box_model
+    # python -m torch.distributed.launch --nproc_per_node=8 --use_env main.py --coco_path /path/to/coco
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
+    args.coco_path = '/data/ai_data/coco2017'
+    args.output_dir = '/data/pkls/coco2017'
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
+
+
+def extract_dataset():
+    parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
+    args = parser.parse_args()
+    args.coco_path = '/data/ai_data/coco2017'
+    args.output_dir = '/data/pkls/coco2017'
+    dataset_train = build_dataset(image_set='train', args=args)
+    train_one = dataset_train[0]
+    dataset_val = build_dataset(image_set='val', args=args)
+    dataset_val = dataset_train[0]
+
+    if args.distributed:
+        sampler_train = DistributedSampler(dataset_train)
+        sampler_val = DistributedSampler(dataset_val, shuffle=False)
+    else:
+        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+
+    batch_sampler_train = torch.utils.data.BatchSampler(
+        sampler_train, args.batch_size, drop_last=True)
+
+    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    train_data = next(data_loader_train)
+    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    val_data = next(data_loader_val)
+
+
+def extract_mini_file():
+    '''
+
+    /data/ai_data/coco2017/annotations/instances_train2017.json
+    /data/ai_data/coco2017/annotations/instances_val2017.json
+    from pycocotools.coco import COCO
+    root = Path('/data/ai_data/coco2017')
+    target_root = Path('/data/ai_data_mini/coco2017')
+    '''
+
+    import shutil
+    dataset = json.load(open('/data/ai_data/coco2017/annotations/instances_val2017.json', 'r'))
+    img_target_path = '/data/ai_data_mini/coco2017/val2017'
+    img_source_path = '/data/ai_data/coco2017/val2017'
+    # val_coco = COCO('/data/ai_data/coco2017/annotations/instances_val2017.json')
+    images = dataset['images']
+    annotations = dataset['annotations']
+    sampled_elements = random.sample(images, len(images)//100)
+    sampled_elements_annotations = []
+    for sampled_element in sampled_elements:
+        image_id = sampled_element['id']
+        file_name = sampled_element['file_name']
+        target_path = Path(img_target_path, file_name)
+        source_path = Path(img_source_path, file_name)
+        shutil.copy(source_path, target_path)
+        for annotation in annotations:
+            if image_id == annotation['image_id']:
+                sampled_elements_annotations.append(annotation)
+
+    mini_dataset={}
+    mini_dataset['images'] = sampled_elements
+    mini_dataset['annotations'] = sampled_elements_annotations
+    mini_dataset['categories'] = dataset['categories']
+    mini_dataset['info'] = dataset['info']
+    mini_dataset['licenses'] = dataset['licenses']
+
+    with open('/data/ai_data_mini/coco2017/annotations/instances_val2017.json', 'w') as json_file:
+        json.dump(mini_dataset, json_file, indent=4)
+
+
+
+
+    pass
+
+if __name__ == '__main__':
+
+    extract_mini_file()
