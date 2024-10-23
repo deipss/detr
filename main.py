@@ -281,6 +281,43 @@ def extract_dataset():
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
     val_data = next(data_loader_val)
 
+def extract_mini_file_by_category():
+    josn_file_path = '/data/ai_data/coco2017/annotations/instances_val2017.json'
+    coco_json_path = josn_file_path
+    val_coco = COCO(coco_json_path)
+    print(val_coco.cats)
+    ids = val_coco.catToImgs[4]
+    ids_unique =list(set(ids))
+    print(ids_unique)
+    imgs_cate= [val_coco.imgs.get(e)for e in ids_unique]
+    anno_cate = [val_coco.anns.get(e) for e in ids_unique]
+    anno_cate_1d = [item for sublist in anno_cate for item in sublist]
+    print(f'images length = {len(imgs_cate)}')
+    print(f'images annotation length = {len(anno_cate_1d)}')
+
+
+    import shutil
+    dataset = json.load(open(josn_file_path, 'r'))
+    img_target_path = '/data/ai_data_mini/coco2017/val2017'
+    img_source_path = '/data/ai_data/coco2017/val2017'
+    # val_coco = COCO('/data/ai_data/coco2017/annotations/instances_val2017.json')
+
+    sampled_elements_annotations = []
+    for sampled_element in imgs_cate:
+        file_name = sampled_element['file_name']
+        target_path = Path(img_target_path, file_name)
+        source_path = Path(img_source_path, file_name)
+        shutil.copy(source_path, target_path)
+
+    mini_dataset = {}
+    mini_dataset['images'] = sampled_elements
+    mini_dataset['annotations'] = sampled_elements_annotations
+    mini_dataset['categories'] = dataset['categories']
+    mini_dataset['info'] = dataset['info']
+    mini_dataset['licenses'] = dataset['licenses']
+
+    with open('/data/ai_data_mini/coco2017/annotations/instances_val2017.json', 'w') as json_file:
+        json.dump(mini_dataset, json_file, indent=4)
 
 def extract_mini_file():
     '''
