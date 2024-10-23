@@ -15,6 +15,7 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
+from pycocotools.coco import COCO
 
 
 def get_args_parser():
@@ -290,7 +291,7 @@ def extract_mini_file_by_category():
     ids_unique =list(set(ids))
     print(ids_unique)
     imgs_cate= [val_coco.imgs.get(e)for e in ids_unique]
-    anno_cate = [val_coco.anns.get(e) for e in ids_unique]
+    anno_cate = [val_coco.imgToAnns.get(e) for e in ids_unique]
     anno_cate_1d = [item for sublist in anno_cate for item in sublist]
     print(f'images length = {len(imgs_cate)}')
     print(f'images annotation length = {len(anno_cate_1d)}')
@@ -302,7 +303,6 @@ def extract_mini_file_by_category():
     img_source_path = '/data/ai_data/coco2017/val2017'
     # val_coco = COCO('/data/ai_data/coco2017/annotations/instances_val2017.json')
 
-    sampled_elements_annotations = []
     for sampled_element in imgs_cate:
         file_name = sampled_element['file_name']
         target_path = Path(img_target_path, file_name)
@@ -310,8 +310,8 @@ def extract_mini_file_by_category():
         shutil.copy(source_path, target_path)
 
     mini_dataset = {}
-    mini_dataset['images'] = sampled_elements
-    mini_dataset['annotations'] = sampled_elements_annotations
+    mini_dataset['images'] = imgs_cate
+    mini_dataset['annotations'] = anno_cate_1d
     mini_dataset['categories'] = dataset['categories']
     mini_dataset['info'] = dataset['info']
     mini_dataset['licenses'] = dataset['licenses']
@@ -357,10 +357,6 @@ def extract_mini_file():
 
     with open('/data/ai_data_mini/coco2017/annotations/instances_val2017.json', 'w') as json_file:
         json.dump(mini_dataset, json_file, indent=4)
-
-
-
-
     pass
 
 if __name__ == '__main__':

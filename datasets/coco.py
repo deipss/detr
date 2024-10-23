@@ -13,7 +13,10 @@ from pycocotools import mask as coco_mask
 
 import datasets.transforms as T
 
-
+'''
+继承自CocoDetection类，这个类是pytorch自己提供的，
+这个CocoDetection类继承自VisionDataset类
+'''
 class CocoDetection(torchvision.datasets.CocoDetection):
     def __init__(self, img_folder, ann_file, transforms, return_masks):
         super(CocoDetection, self).__init__(img_folder, ann_file)
